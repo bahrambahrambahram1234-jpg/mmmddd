@@ -266,7 +266,7 @@ MIN_PORT, MAX_PORT = 1, 65535
 AUTH_TYPES = ("vless", "trojan")
 DEFAULT_AUTH = "vless"
 
-TRANSPORTS = ("ws", "xhttp-packet-up", "xhttp-stream-up")
+TRANSPORTS = ("ws",)
 DEFAULT_TRANSPORT = "ws"
 
 PROTOCOLS = tuple(f"{a}-{t}" for a in AUTH_TYPES for t in TRANSPORTS)
@@ -1622,8 +1622,8 @@ async def handle_create_command(text: str):
             "active": True,
             "expires_at": expires_at,
             "variants": {
-                "vless": {"enabled": True, "transport": "ws", "fingerprint": "chrome", "alpn": "h3"},
-                "trojan": {"enabled": False, "transport": "ws", "fingerprint": "chrome", "alpn": "h3"},
+                "vless": {"enabled": True, "transport": "ws", "fingerprint": "chrome", "alpn": "http/1.1"},
+                "trojan": {"enabled": False, "transport": "ws", "fingerprint": "chrome", "alpn": "http/1.1"},
             },
             "port": DEFAULT_PORT,
         }
@@ -4980,10 +4980,8 @@ body[dir="rtl"]{direction:rtl;text-align:right}
         <div class="fr">
           <div class="fg">
             <label class="fl" data-en="Transport" data-fa="ترابرد">Transport</label>
-            <select class="fs" id="n_vless_transport" onchange="syncAlpnDefault('vless','n_vless_transport','n_vless_alpn')">
-              <option value="ws">WebSocket</option>
-              <option value="xhttp-packet-up">XHTTP (packet-up)</option>
-              <option value="xhttp-stream-up">XHTTP (stream-up)</option>
+            <select class="fs" id="n_vless_transport">
+                <option value="ws">WebSocket</option>
             </select>
           </div>
           <div class="fg">
@@ -5013,10 +5011,8 @@ body[dir="rtl"]{direction:rtl;text-align:right}
         <div class="fr">
           <div class="fg">
             <label class="fl" data-en="Transport" data-fa="ترابرد">Transport</label>
-            <select class="fs" id="n_trojan_transport" onchange="syncAlpnDefault('trojan','n_trojan_transport','n_trojan_alpn')">
-              <option value="ws">WebSocket</option>
-              <option value="xhttp-packet-up">XHTTP (packet-up)</option>
-              <option value="xhttp-stream-up">XHTTP (stream-up)</option>
+            <select class="fs" id="n_trojan_transport">
+                <option value="ws">WebSocket</option>
             </select>
           </div>
           <div class="fg">
@@ -5076,10 +5072,8 @@ body[dir="rtl"]{direction:rtl;text-align:right}
         <div class="fr">
           <div class="fg">
             <label class="fl" data-en="Transport" data-fa="ترابرد">Transport</label>
-            <select class="fs" id="e_vless_transport" onchange="syncAlpnDefault('vless','e_vless_transport','e_vless_alpn')">
-              <option value="ws">WebSocket</option>
-              <option value="xhttp-packet-up">XHTTP (packet-up)</option>
-              <option value="xhttp-stream-up">XHTTP (stream-up)</option>
+            <select class="fs" id="e_vless_transport">
+                <option value="ws">WebSocket</option>
             </select>
           </div>
           <div class="fg">
