@@ -6939,9 +6939,9 @@ async def api_set_panel_role(request: Request, _=Depends(require_auth)):
         CONFIG["master_url"] = str(body.get("master_url") or "").strip()
     if "master_token" in body:
         CONFIG["master_token"] = str(body.get("master_token") or "").strip()
-   if "default_transport" in body:
+    if "default_transport" in body:
         new_t = str(body.get("default_transport") or "").strip()
-    if new_t in TRANSPORTS:
+        if new_t in TRANSPORTS:
             CONFIG["default_transport"] = new_t
     
     # ذخیره توی دیتابیس
