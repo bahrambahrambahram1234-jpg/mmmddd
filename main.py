@@ -231,6 +231,7 @@ CONFIG = {
     "bot_lang": "en",
     "railway_token": "",
     "notify_connections": "0",
+    "default_transport": os.environ.get("DEFAULT_TRANSPORT", "ws"),
 }
 
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
@@ -266,7 +267,7 @@ MIN_PORT, MAX_PORT = 1, 65535
 AUTH_TYPES = ("vless", "trojan")
 DEFAULT_AUTH = "vless"
 
-TRANSPORTS = ("ws",)
+TRANSPORTS = ("ws", "xhttp-packet-up", "xhttp-stream-up")
 DEFAULT_TRANSPORT = "ws"
 
 PROTOCOLS = tuple(f"{a}-{t}" for a in AUTH_TYPES for t in TRANSPORTS)
@@ -1622,8 +1623,8 @@ async def handle_create_command(text: str):
             "active": True,
             "expires_at": expires_at,
             "variants": {
-                "vless": {"enabled": True, "transport": "ws", "fingerprint": "chrome", "alpn": "http/1.1"},
-                "trojan": {"enabled": False, "transport": "ws", "fingerprint": "chrome", "alpn": "http/1.1"},
+                "vless": {"enabled": True, "transport": "ws", "fingerprint": "chrome", "alpn": "h3"},
+                "trojan": {"enabled": False, "transport": "ws", "fingerprint": "chrome", "alpn": "h3"},
             },
             "port": DEFAULT_PORT,
         }
@@ -4840,6 +4841,15 @@ body[dir="rtl"]{direction:rtl;text-align:right}
             <option value="">Loading countries...</option>
           </select>
         </div>
+        <div class="fg">
+          <label class="fl" data-en="Default Transport" data-fa="ترابرد پیش‌فرض">ترابرد پیش‌فرض</label>
+          <select class="fs" id="prole-transport">
+            <option value="ws">WebSocket</option>
+            <option value="xhttp-packet-up">XHTTP (packet-up)</option>
+            <option value="xhttp-stream-up">XHTTP (stream-up)</option>
+          </select>
+          <div style="font-size:10px;color:var(--text3);margin-top:4px" data-en="Transport used for configs on this node" data-fa="ترابردی که برای کانفیگ‌های این نود استفاده می‌شه">ترابردی که برای کانفیگ‌های این نود استفاده می‌شه</div>
+        </div>
 
         <!-- API Token -->
         <div class="fg" id="prole-token-section">
@@ -4980,8 +4990,10 @@ body[dir="rtl"]{direction:rtl;text-align:right}
         <div class="fr">
           <div class="fg">
             <label class="fl" data-en="Transport" data-fa="ترابرد">Transport</label>
-            <select class="fs" id="n_vless_transport">
-                <option value="ws">WebSocket</option>
+            <select class="fs" id="n_vless_transport" onchange="syncAlpnDefault('vless','n_vless_transport','n_vless_alpn')">
+              <option value="ws">WebSocket</option>
+              <option value="xhttp-packet-up">XHTTP (packet-up)</option>
+              <option value="xhttp-stream-up">XHTTP (stream-up)</option>
             </select>
           </div>
           <div class="fg">
@@ -5011,8 +5023,10 @@ body[dir="rtl"]{direction:rtl;text-align:right}
         <div class="fr">
           <div class="fg">
             <label class="fl" data-en="Transport" data-fa="ترابرد">Transport</label>
-            <select class="fs" id="n_trojan_transport">
-                <option value="ws">WebSocket</option>
+            <select class="fs" id="n_trojan_transport" onchange="syncAlpnDefault('trojan','n_trojan_transport','n_trojan_alpn')">
+              <option value="ws">WebSocket</option>
+              <option value="xhttp-packet-up">XHTTP (packet-up)</option>
+              <option value="xhttp-stream-up">XHTTP (stream-up)</option>
             </select>
           </div>
           <div class="fg">
@@ -5072,8 +5086,10 @@ body[dir="rtl"]{direction:rtl;text-align:right}
         <div class="fr">
           <div class="fg">
             <label class="fl" data-en="Transport" data-fa="ترابرد">Transport</label>
-            <select class="fs" id="e_vless_transport">
-                <option value="ws">WebSocket</option>
+            <select class="fs" id="e_vless_transport" onchange="syncAlpnDefault('vless','e_vless_transport','e_vless_alpn')">
+              <option value="ws">WebSocket</option>
+              <option value="xhttp-packet-up">XHTTP (packet-up)</option>
+              <option value="xhttp-stream-up">XHTTP (stream-up)</option>
             </select>
           </div>
           <div class="fg">
@@ -6005,6 +6021,7 @@ async function loadPanelRole(){
     
     await loadCountriesList();
     $m('prole-country').value = d.panel_country || 'nl';
+    if($m('prole-transport')) $m('prole-transport').value = d.default_transport || 'ws';
     
     $m('prole-token').value = d.my_api_token || '';
     
@@ -6063,6 +6080,7 @@ async function savePanelRole(){
   const role = document.querySelector('input[name="panel_role"]:checked')?.value || 'master';
   const name = $m('prole-name').value.trim();
   const country = $m('prole-country').value;
+  const transport = $m('prole-transport')?.value || 'ws';
   const slot = parseInt($m('prole-slot')?.value || '1');
   const masterUrl = ($m('prole-master-url')?.value || '').trim();
   const masterToken = ($m('prole-master-token')?.value || '').trim();
@@ -6089,6 +6107,7 @@ async function savePanelRole(){
         panel_slot: slot,
         master_url: masterUrl,
         master_token: masterToken,
+        default_transport: transport,       
       })
     });
     
@@ -6800,12 +6819,16 @@ async def api_node_receive_user(request: Request):
     my_flag = get_panel_flag()
     final_label = f"{my_flag} {clean_label}"
     
-    # اگه کاربر از قبل هست، آپدیت کن
-    variants = body.get("variants") or default_variants()
+    # ⭐ Transport رو از default خودِ Node استفاده کن (نه از Master)
+    received_variants = body.get("variants") or default_variants()
+    my_transport = CONFIG.get("default_transport", "ws")
+    variants = {}
+    for auth in AUTH_TYPES:
+        v = dict(received_variants.get(auth, {}))
+        if v.get("enabled"):
+            v["transport"] = my_transport
+        variants[auth] = v
     limit_bytes = int(body.get("limit_bytes") or 0)
-    expires_at = body.get("expires_at")
-    max_connections = int(body.get("max_connections") or 0)
-    active = bool(body.get("active", True))  
     
     async with LINKS_LOCK:
         if uid in LINKS:
@@ -6876,6 +6899,7 @@ async def api_get_panel_role(_=Depends(require_auth)):
         "panel_slot": int(CONFIG.get("panel_slot", 1)),
         "master_url": CONFIG.get("master_url", ""),
         "master_token": CONFIG.get("master_token", ""),
+        "default_transport": CONFIG.get("default_transport", "ws"),
     }
 
 
@@ -6915,6 +6939,10 @@ async def api_set_panel_role(request: Request, _=Depends(require_auth)):
         CONFIG["master_url"] = str(body.get("master_url") or "").strip()
     if "master_token" in body:
         CONFIG["master_token"] = str(body.get("master_token") or "").strip()
+   if "default_transport" in body:
+        new_t = str(body.get("default_transport") or "").strip()
+    if new_t in TRANSPORTS:
+            CONFIG["default_transport"] = new_t
     
     # ذخیره توی دیتابیس
     await save_db()
